@@ -36,6 +36,7 @@ def healthz() -> Response:
 
 
 @app.route("/", methods=["POST"])
+@app.route("/api/webhook", methods=["POST"])
 def webhook() -> Response:
     if not application:
         return Response("Telegram bot token not configured", status=500, mimetype="text/plain")
