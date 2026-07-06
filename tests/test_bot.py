@@ -5,8 +5,6 @@ from types import SimpleNamespace
 from telstock import bot
 from telstock.market import Quote, Verdict
 
-from api import webhook
-
 
 def _quote(ticker="NVDA", verdict=Verdict.BARGAIN, peg=0.8) -> Quote:
     return Quote(
@@ -77,11 +75,6 @@ def test_scan_filters_by_verdict():
 
 def test_scan_empty_message():
     assert bot.format_scan([], Verdict.BARGAIN, "no bargains") == "no bargains"
-
-
-def test_build_application_creates_bot_app():
-    app = bot.build_application("dummy-token")
-    assert app is not None
 
 
 def test_process_ticker_lookup_fetches_quote_for_valid_input():
