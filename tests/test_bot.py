@@ -1,0 +1,68 @@
+import time
+
+from telstock import bot, config
+from telstock.market import Quote, Verdict
+
+
+def _quote(ticker="NVDA", verdict=Verdict.BARGAIN, peg=0.8) -> Quote:
+    return Quote(
+        ticker=ticker,
+        name=f"🎮 {ticker}",
+        price=123.45,
+        currency="USD",
+        pe=40.0,
+        forward_pe=30.0,
+        peg=peg,
+        verdict=verdict,
+        fetched_at=time.time(),
+    )
+
+
+def test_main_menu_has_four_actions():
+    kb = bot.main_menu_keyboard().inline_keyboard
+    callbacks = [btn.callback_data for row in kb for btn in row]
+    assert callbacks == ["menu:prices", "menu:bargains", "menu:overpriced", "menu:overview"]
+
+
+def test_ticker_keyboard_covers_watchlist_plus_back():
+    kb = bot.ticker_keyboard().inline_keyboard
+    callbacks = [btn.callback_data for row in kb for btn in row]
+    tickers = [c.split(":")[1] for c in callbacks if c.startswith("stock:")]
+    assert tickers == list(config.WATCHLISTS["US"].keys())
+    assert callbacks[-1] == "menu:main"
+
+
+def test_stock_card_contains_key_numbers():
+    text = bot.format_stock_card(_quote())
+    assert "123.45" in text
+    assert "40.00" in text  # P/E
+    assert "0.80" in text   # PEG
+    assert Verdict.BARGAIN.emoji in text
+    assert "expects earnings to grow" in text
+
+
+def test_stock_card_handles_missing_data():
+    q = _quote(verdict=Verdict.UNKNOWN, peg=None)
+    q.pe = None
+    q.forward_pe = None
+    q.price = None
+    text = bot.format_stock_card(q)
+    assert "—" in text
+    assert Verdict.UNKNOWN.emoji in text
+
+
+def test_scan_filters_by_verdict():
+    quotes = [
+        _quote("CHEAP", Verdict.BARGAIN, peg=0.5),
+        _quote("MEH", Verdict.FAIR, peg=2.0),
+        _quote("RICH", Verdict.OVERPRICED, peg=6.0),
+    ]
+    bargains = bot.format_scan(quotes, Verdict.BARGAIN, "none")
+    assert "CHEAP" in bargains and "RICH" not in bargains
+
+    pricey = bot.format_scan(quotes, Verdict.OVERPRICED, "none")
+    assert "RICH" in pricey and "CHEAP" not in pricey
+
+
+def test_scan_empty_message():
+    assert bot.format_scan([], Verdict.BARGAIN, "no bargains") == "no bargains"
