@@ -77,6 +77,11 @@ def test_scan_empty_message():
     assert bot.format_scan([], Verdict.BARGAIN, "no bargains") == "no bargains"
 
 
+def test_build_application_creates_bot_app():
+    app = bot.build_application("dummy-token")
+    assert app is not None
+
+
 def test_process_ticker_lookup_fetches_quote_for_valid_input():
     class DummyMessage:
         def __init__(self, text: str):

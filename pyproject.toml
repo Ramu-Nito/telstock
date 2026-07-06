@@ -16,4 +16,4 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.vercel.entrypoint]
-path = "api/index.py"
+path = "api/webhook.py"
