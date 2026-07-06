@@ -24,7 +24,9 @@ TelStock puts a stock watchlist inside Telegram. Tap a button, get the price plu
 
 The bot **edits messages in place** instead of spamming the chat — navigating feels like using an app with screens, not texting a robot.
 
-Data comes from Yahoo Finance (free, no API key) with a 5-minute cache. Bonus signal on every stock card: if Forward P/E is below trailing P/E, the market expects earnings to grow 📈.
+**The watchlist builds itself.** Pinned favorites (🚀 SpaceX, 🎮 Nvidia, 🪟 Microsoft, 🔧 AMD) always come first; the rest of the grid is filled with **today's most active US stocks** from Yahoo's screener, refreshed every 15 minutes. Open the bot on a different day, see different movers.
+
+Data comes from Yahoo Finance (free, no API key) with a 5-minute quote cache. Bonus signal on every stock card: if Forward P/E is below trailing P/E, the market expects earnings to grow 📈.
 
 ## Setup
 
@@ -64,8 +66,8 @@ telstock/
 
 ## Extending
 
-- **Add a stock:** one line in `config.WATCHLISTS["US"]` — emoji included
-- **Add a market:** add a new key to `WATCHLISTS` (e.g. `"EU"`); the structure is ready for a market-picker button
+- **Pin a favorite:** one line in `config.PINNED_TICKERS` — emoji included
+- **Change the dynamic source:** swap `config.SCREENER` for any yfinance predefined screener (`day_gainers`, `day_losers`, `growth_technology_stocks`, ...)
 - **Tune the thresholds:** `PEG_BARGAIN_MAX` / `PEG_OVERPRICED_MIN` in `config.py`
 
 ## Tech stack
