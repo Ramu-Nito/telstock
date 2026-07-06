@@ -252,6 +252,14 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await process_ticker_lookup(update, context)
 
 
+def build_application(token: str) -> Application:
+    app = Application.builder().token(token).build()
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CallbackQueryHandler(on_button))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
+    return app
+
+
 def main() -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -260,10 +268,7 @@ def main() -> None:
             "Create a bot with @BotFather on Telegram, then:\n"
             '  PowerShell:  $env:TELEGRAM_BOT_TOKEN = "123456:ABC-your-token"'
         )
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CallbackQueryHandler(on_button))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
+    app = build_application(token)
     logger.info("TelStock is running — press Ctrl+C to stop.")
     app.run_polling()
 
