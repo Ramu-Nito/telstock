@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
@@ -17,6 +18,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 from telstock import config, market
@@ -38,6 +41,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("💸 Overpriced Now", callback_data="menu:overpriced"),
             ],
             [InlineKeyboardButton("📊 Watchlist Overview", callback_data="menu:overview")],
+            [InlineKeyboardButton("🔎 Look Up Any Ticker", callback_data="menu:search")],
         ]
     )
 
@@ -69,6 +73,20 @@ def back_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("🏠 Main Menu", callback_data="menu:main")]]
     )
+
+
+# ---------- ticker input ----------
+
+TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+def normalize_ticker(text: str) -> str | None:
+    """Turn free-typed input into a ticker symbol, or None if it can't be one.
+
+    Accepts 'nvda', ' SPCX ', '$ko', 'BRK.B'; rejects sentences and junk.
+    """
+    candidate = text.strip().upper().lstrip("$")
+    return candidate if TICKER_RE.match(candidate) else None
 
 
 # ---------- message formatting ----------
@@ -118,7 +136,15 @@ WELCOME = (
     f"🟢 bargain (PEG &lt; {config.PEG_BARGAIN_MAX:g})  ·  "
     f"🟡 fair  ·  "
     f"🔴 overpriced (PEG &gt; {config.PEG_OVERPRICED_MIN:g})\n\n"
+    "💡 Tip: you can also just <b>type any ticker</b> (like <code>KO</code> or "
+    "<code>PLTR</code>) at any time.\n\n"
     "What would you like to do?"
+)
+
+SEARCH_PROMPT = (
+    "🔎 <b>Type a ticker symbol</b> and send it — e.g. <code>NVDA</code>, "
+    "<code>SPCX</code>, <code>BRK.B</code>.\n\n"
+    "I'll fetch the price and valuation verdict for any US-listed stock."
 )
 
 
@@ -136,6 +162,11 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if action == "menu:main":
         await query.edit_message_text(
             WELCOME, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML
+        )
+
+    elif action == "menu:search":
+        await query.edit_message_text(
+            SEARCH_PROMPT, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML
         )
 
     elif action == "menu:prices":
