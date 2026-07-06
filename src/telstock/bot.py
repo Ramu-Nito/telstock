@@ -149,8 +149,38 @@ SEARCH_PROMPT = (
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    context.user_data.pop("awaiting_ticker", None)
     await update.message.reply_text(
         WELCOME, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML
+    )
+
+
+async def process_ticker_lookup(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    watchlist_fetcher=market.get_watchlist,
+    quote_fetcher=market.get_quote,
+) -> None:
+    text = (update.message.text or "").strip()
+    ticker = normalize_ticker(text)
+    if not ticker:
+        await update.message.reply_text(
+            "⚠️ I couldn't read that as a ticker. Please send a symbol like <code>NVDA</code> or <code>BRK.B</code>.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    context.user_data["awaiting_ticker"] = False
+    await update.message.reply_text(
+        f"⏳ Fetching <b>{ticker}</b>...", parse_mode=ParseMode.HTML
+    )
+    watchlist = await asyncio.to_thread(watchlist_fetcher)
+    quote = await asyncio.to_thread(quote_fetcher, ticker, watchlist.get(ticker))
+    await update.message.reply_text(
+        format_stock_card(quote),
+        reply_markup=stock_keyboard(ticker),
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -165,6 +195,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
     elif action == "menu:search":
+        context.user_data["awaiting_ticker"] = True
         await query.edit_message_text(
             SEARCH_PROMPT, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML
         )
@@ -214,6 +245,13 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
+async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.message or not update.message.text:
+        return
+    if context.user_data.get("awaiting_ticker") or normalize_ticker(update.message.text):
+        await process_ticker_lookup(update, context)
+
+
 def main() -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -225,6 +263,7 @@ def main() -> None:
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CallbackQueryHandler(on_button))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
     logger.info("TelStock is running — press Ctrl+C to stop.")
     app.run_polling()
 

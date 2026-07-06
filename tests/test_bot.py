@@ -1,4 +1,6 @@
+import asyncio
 import time
+from types import SimpleNamespace
 
 from telstock import bot
 from telstock.market import Quote, Verdict
@@ -18,10 +20,16 @@ def _quote(ticker="NVDA", verdict=Verdict.BARGAIN, peg=0.8) -> Quote:
     )
 
 
-def test_main_menu_has_four_actions():
+def test_main_menu_has_search_action():
     kb = bot.main_menu_keyboard().inline_keyboard
     callbacks = [btn.callback_data for row in kb for btn in row]
-    assert callbacks == ["menu:prices", "menu:bargains", "menu:overpriced", "menu:overview"]
+    assert callbacks == [
+        "menu:prices",
+        "menu:bargains",
+        "menu:overpriced",
+        "menu:overview",
+        "menu:search",
+    ]
 
 
 def test_ticker_keyboard_covers_watchlist_plus_back():
@@ -67,3 +75,41 @@ def test_scan_filters_by_verdict():
 
 def test_scan_empty_message():
     assert bot.format_scan([], Verdict.BARGAIN, "no bargains") == "no bargains"
+
+
+def test_process_ticker_lookup_fetches_quote_for_valid_input():
+    class DummyMessage:
+        def __init__(self, text: str):
+            self.text = text
+            self.replies: list[tuple[str, dict]] = []
+
+        async def reply_text(self, text: str, **kwargs):
+            self.replies.append((text, kwargs))
+
+    class DummyUpdate:
+        def __init__(self, text: str):
+            self.message = DummyMessage(text)
+
+    update = DummyUpdate("nvda")
+    context = SimpleNamespace(user_data={})
+    quote = _quote("NVDA")
+
+    def fake_watchlist():
+        return {"NVDA": "🎮 NVDA"}
+
+    def fake_quote(ticker: str, display_name: str | None = None):
+        assert ticker == "NVDA"
+        assert display_name == "🎮 NVDA"
+        return quote
+
+    asyncio.run(
+        bot.process_ticker_lookup(
+            update,
+            context,
+            watchlist_fetcher=fake_watchlist,
+            quote_fetcher=fake_quote,
+        )
+    )
+
+    assert update.message.replies[0][0] == "⏳ Fetching <b>NVDA</b>..."
+    assert update.message.replies[1][0] == bot.format_stock_card(quote)
