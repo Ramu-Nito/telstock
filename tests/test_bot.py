@@ -1,6 +1,6 @@
 import time
 
-from telstock import bot, config
+from telstock import bot
 from telstock.market import Quote, Verdict
 
 
@@ -25,10 +25,11 @@ def test_main_menu_has_four_actions():
 
 
 def test_ticker_keyboard_covers_watchlist_plus_back():
-    kb = bot.ticker_keyboard().inline_keyboard
+    watchlist = {"SPCX": "🚀 SPCX", "NVDA": "🎮 NVDA", "WULF": "💹 TeraWulf"}
+    kb = bot.ticker_keyboard(watchlist).inline_keyboard
     callbacks = [btn.callback_data for row in kb for btn in row]
     tickers = [c.split(":")[1] for c in callbacks if c.startswith("stock:")]
-    assert tickers == list(config.WATCHLISTS["US"].keys())
+    assert tickers == list(watchlist.keys())
     assert callbacks[-1] == "menu:main"
 
 

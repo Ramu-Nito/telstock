@@ -55,6 +55,41 @@ def test_earnings_growing_when_forward_pe_lower():
     assert _quote(pe=None, forward_pe=25.0).earnings_growing is None
 
 
+def test_watchlist_pins_first_then_screener(monkeypatch):
+    def fake_screen(name, count=None):
+        return {
+            "quotes": [
+                {"symbol": "NVDA", "shortName": "NVIDIA Corporation", "quoteType": "EQUITY"},  # dupe of pin
+                {"symbol": "WULF", "shortName": "TeraWulf Inc.", "quoteType": "EQUITY"},
+                {"symbol": "BTC-USD", "shortName": "Bitcoin", "quoteType": "CRYPTOCURRENCY"},  # filtered
+                {"symbol": "INTC", "shortName": "Intel Corporation", "quoteType": "EQUITY"},
+            ]
+        }
+
+    monkeypatch.setattr(market.yf, "screen", fake_screen)
+    market._watchlist_cache = None
+
+    wl = market.get_watchlist()
+    tickers = list(wl)
+    # pins come first, in config order
+    assert tickers[: len(market.config.PINNED_TICKERS)] == list(market.config.PINNED_TICKERS)
+    # screener equities appended, non-equities filtered, no duplicates
+    assert "WULF" in wl and "INTC" in wl
+    assert "BTC-USD" not in wl
+    assert tickers.count("NVDA") == 1
+
+
+def test_watchlist_falls_back_when_screener_dies(monkeypatch):
+    def broken_screen(name, count=None):
+        raise ConnectionError("yahoo is down")
+
+    monkeypatch.setattr(market.yf, "screen", broken_screen)
+    market._watchlist_cache = None
+
+    wl = market.get_watchlist()
+    assert wl == market.config.FALLBACK_WATCHLIST
+
+
 def test_get_quote_uses_cache(monkeypatch):
     calls = []
 
