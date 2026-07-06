@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from telstock import bot
 from telstock.market import Quote, Verdict
 
+from api import webhook
+
 
 def _quote(ticker="NVDA", verdict=Verdict.BARGAIN, peg=0.8) -> Quote:
     return Quote(
