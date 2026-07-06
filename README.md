@@ -1,6 +1,6 @@
 # 📈 TelStock
 
-**A Telegram bot for tracking US stocks with instant valuation verdicts — big buttons, emojis, zero typing.**
+**A Telegram bot for tracking US stocks with instant valuation verdicts**
 
 TelStock puts a stock watchlist inside Telegram. Tap a button, get the price plus a traffic-light valuation verdict computed from three numbers: **P/E**, **Forward P/E**, and the **PEG ratio**.
 
