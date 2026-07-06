@@ -26,8 +26,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("telstock.bot")
 
-MARKET = config.DEFAULT_MARKET
-
 
 # ---------- keyboards ----------
 
@@ -44,11 +42,11 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def ticker_keyboard() -> InlineKeyboardMarkup:
+def ticker_keyboard(watchlist: dict[str, str]) -> InlineKeyboardMarkup:
     """Grid of watchlist tickers, two per row, plus a back button."""
     buttons = [
         InlineKeyboardButton(name, callback_data=f"stock:{ticker}")
-        for ticker, name in config.WATCHLISTS[MARKET].items()
+        for ticker, name in watchlist.items()
     ]
     rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
     rows.append([InlineKeyboardButton("⬅️ Back", callback_data="menu:main")])
@@ -114,8 +112,9 @@ def format_scan(quotes: list[Quote], verdict: Verdict, empty_text: str) -> str:
 
 WELCOME = (
     "👋 <b>Welcome to TelStock!</b>\n\n"
-    "Track US stocks (NYSE + NASDAQ) and get instant valuation verdicts "
-    "based on PEG ratio:\n"
+    "Track today's most active US stocks (NYSE + NASDAQ) — the watchlist "
+    "updates itself with what the market is trading right now. Instant "
+    "valuation verdicts based on PEG ratio:\n"
     f"🟢 bargain (PEG &lt; {config.PEG_BARGAIN_MAX:g})  ·  "
     f"🟡 fair  ·  "
     f"🔴 overpriced (PEG &gt; {config.PEG_OVERPRICED_MIN:g})\n\n"
@@ -140,17 +139,19 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
     elif action == "menu:prices":
+        await query.edit_message_text("⏳ Loading today's movers...", parse_mode=ParseMode.HTML)
+        watchlist = await asyncio.to_thread(market.get_watchlist)
         await query.edit_message_text(
-            "💰 <b>Pick a stock:</b>",
-            reply_markup=ticker_keyboard(),
+            "💰 <b>Pick a stock</b> (pinned favorites + today's most active):",
+            reply_markup=ticker_keyboard(watchlist),
             parse_mode=ParseMode.HTML,
         )
 
     elif action.startswith("stock:"):
         ticker = action.split(":", 1)[1]
         await query.edit_message_text(f"⏳ Fetching <b>{ticker}</b>...", parse_mode=ParseMode.HTML)
-        name = config.WATCHLISTS[MARKET].get(ticker)
-        quote = await asyncio.to_thread(market.get_quote, ticker, name)
+        watchlist = await asyncio.to_thread(market.get_watchlist)
+        quote = await asyncio.to_thread(market.get_quote, ticker, watchlist.get(ticker))
         await query.edit_message_text(
             format_stock_card(quote),
             reply_markup=stock_keyboard(ticker),
@@ -159,7 +160,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     elif action in ("menu:bargains", "menu:overpriced", "menu:overview"):
         await query.edit_message_text("⏳ Scanning the watchlist...", parse_mode=ParseMode.HTML)
-        quotes = await asyncio.to_thread(market.get_watchlist_quotes, MARKET)
+        quotes = await asyncio.to_thread(market.get_watchlist_quotes)
 
         if action == "menu:bargains":
             body = format_scan(

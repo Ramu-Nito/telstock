@@ -79,6 +79,50 @@ def _num(value) -> float | None:
 # module-level quote cache: ticker -> Quote
 _cache: dict[str, Quote] = {}
 
+# dynamic watchlist cache: (built_at, {ticker: display_name})
+_watchlist_cache: tuple[float, dict[str, str]] | None = None
+
+
+def _short_label(name: str | None, ticker: str) -> str:
+    """Compact button label from a company short name."""
+    if not name:
+        return ticker
+    # First word is usually enough ("NVIDIA Corporation" -> "NVIDIA"); fall
+    # back to the ticker for names that start generically.
+    word = name.split()[0].rstrip(",")
+    return word if len(word) > 2 else ticker
+
+
+def get_watchlist() -> dict[str, str]:
+    """Build the watchlist dynamically: pinned favorites + today's most-active
+    US stocks from Yahoo's screener. Falls back to the static list offline.
+
+    Returns {ticker: display_name} with emojis, capped at WATCHLIST_SIZE.
+    """
+    global _watchlist_cache
+    if _watchlist_cache and time.time() - _watchlist_cache[0] < config.WATCHLIST_TTL_SECONDS:
+        return _watchlist_cache[1]
+
+    watchlist: dict[str, str] = {
+        t: f"{emoji} {t}" for t, emoji in config.PINNED_TICKERS.items()
+    }
+    try:
+        result = yf.screen(config.SCREENER, count=config.WATCHLIST_SIZE * 2)
+        for q in result.get("quotes", []):
+            if len(watchlist) >= config.WATCHLIST_SIZE:
+                break
+            ticker = q.get("symbol")
+            if not ticker or ticker in watchlist or q.get("quoteType") != "EQUITY":
+                continue
+            emoji = config.TICKER_EMOJI.get(ticker, config.DEFAULT_EMOJI)
+            watchlist[ticker] = f"{emoji} {_short_label(q.get('shortName'), ticker)}"
+    except Exception:
+        logger.exception("Screener failed — using fallback watchlist")
+        watchlist = dict(config.FALLBACK_WATCHLIST)
+
+    _watchlist_cache = (time.time(), watchlist)
+    return watchlist
+
 
 def get_quote(ticker: str, display_name: str | None = None) -> Quote:
     """Fetch a quote (cached for CACHE_TTL_SECONDS)."""
@@ -103,10 +147,10 @@ def get_quote(ticker: str, display_name: str | None = None) -> Quote:
     return quote
 
 
-def get_watchlist_quotes(market: str = config.DEFAULT_MARKET) -> list[Quote]:
-    """Fetch quotes for every ticker on a market's watchlist, skipping failures."""
+def get_watchlist_quotes() -> list[Quote]:
+    """Fetch quotes for every ticker on the current watchlist, skipping failures."""
     quotes: list[Quote] = []
-    for ticker, name in config.WATCHLISTS[market].items():
+    for ticker, name in get_watchlist().items():
         try:
             quotes.append(get_quote(ticker, display_name=name))
         except Exception:
